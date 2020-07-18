@@ -17,6 +17,7 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -96,6 +97,19 @@ public class MainActivity extends AppCompatActivity {
         recordingThread.start();
     }
 
+    //Convierte de Short[] a Byte[]
+    private byte[] short2byte(short[] sData) {
+        int shortArrsize = sData.length;
+        byte[] bytes = new byte[shortArrsize * 2];
+        for (int i = 0; i < shortArrsize; i++) {
+            bytes[i * 2] = (byte) (sData[i] & 0x00FF);
+            bytes[(i * 2) + 1] = (byte) (sData[i] >> 8);
+            sData[i] = 0;
+        }
+        return bytes;
+
+    }
+
     // Escribe el audio de salida en Bytes
     private void writeAudioDataToFile() throws IOException {
 
@@ -124,12 +138,31 @@ public class MainActivity extends AppCompatActivity {
             recorder.read(sData, 0, BufferElements2Rec);
 
             Log.d("MainActivity ", "Grabando audio" + sData.toString());
-
+            try{
+                // Escribe los datos al archivo desde el búfer
+                // Almacena el Bufer de voz
+                byte bData[] = short2byte(sData);
+                //audioR_.write(bData);
+                audioR_.write(bData, 0, BufferElements2Rec * BytesPerElement);
+            } catch (IOException e){
+                e.printStackTrace();
+            }
         }
         try {
             audioR_.close();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    // Detiene la grabación
+    private void stopRecording() {
+        if (null != recorder) {
+            isRecording = false;
+            recorder.stop();
+            recorder.release();
+            recorder = null;
+            recordingThread = null;
         }
     }
 
@@ -146,6 +179,11 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.btn_parar: {
                     ((TextView)findViewById(R.id.txtview)).setText("Grabación Detenida");
                     enableButtons(false);
+                    stopRecording();
+
+                    // COnvertir AUDIO PCM a WAV
+                    File audioRecord = new File("/sdcard/audio-record.pcm");
+                    File audioWav = new File("/sdcard/audio-record.wav");
                     break;
                 }
             }
