@@ -11,10 +11,15 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -23,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
     private AudioRecord recorder = null;
+    private Thread recordingThread = null;
     private boolean isRecording = false;
 
     //Botones
@@ -77,6 +83,54 @@ public class MainActivity extends AppCompatActivity {
 
         recorder.startRecording();
         isRecording = true;
+        recordingThread = new Thread(new Runnable() {
+            public void run() {
+                try {
+                    // Guarda el audio en un archivo
+                    writeAudioDataToFile();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }, "AudioRecorder Thread");
+        recordingThread.start();
+    }
+
+    // Escribe el audio de salida en Bytes
+    private void writeAudioDataToFile() throws IOException {
+
+        String filePath = "/sdcard/audio-record.pcm";
+        // Crear Fichero
+       /* File filepath = Environment.getExternalStorageDirectory();
+        File path = new File(filepath.getAbsolutePath() + "/LABORATORIO11/");
+        //Verifica si el directorio esta creado
+        if(!path.exists()){
+            path.mkdirs();
+        }*/
+        short sData[] = new short[BufferElements2Rec];
+
+        FileOutputStream audioR_ = null;
+        try {
+            audioR_ = new FileOutputStream(filePath);
+            //Añadir codigo para convertir archivo PCM a WAV
+
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        while (isRecording) {
+            //Obtiene la salida de voz en el formato de short[]
+            recorder.read(sData, 0, BufferElements2Rec);
+
+            Log.d("MainActivity ", "Grabando audio" + sData.toString());
+
+        }
+        try {
+            audioR_.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     //Funcionalidad al hacer touch en el boton
@@ -117,10 +171,10 @@ public class MainActivity extends AppCompatActivity {
             case REQUEST_PERMISSION_CODE:
             {
                 if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-                    Toast.makeText(this, "Permiso Concedido", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "PERMISSION GRANTED", Toast.LENGTH_LONG).show();
                 }
                 else {
-                    Toast.makeText(this, "Permiso Denegado", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "PERMISSION DENIED", Toast.LENGTH_SHORT).show();
                 }
                 break;
             }
