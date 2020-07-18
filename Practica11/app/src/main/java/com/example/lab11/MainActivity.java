@@ -4,7 +4,6 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.media.AudioFormat;
@@ -16,14 +15,18 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class MainActivity extends AppCompatActivity {
-
+    // variables para audio y permisos
     private static final int REQUEST_PERMISSION_CODE = 1000;
     private static final int RECORDER_SAMPLERATE = 44100;
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
@@ -52,7 +55,6 @@ public class MainActivity extends AppCompatActivity {
         }else{
             requestPermission();
         }
-
         btnGrabar = (Button)findViewById(R.id.btn_Grabar);
         btnParar = (Button)findViewById(R.id.btn_parar);
         setButtonHandlers();
@@ -60,7 +62,9 @@ public class MainActivity extends AppCompatActivity {
 
         int bufferSize = AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE,
                 RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING);
+
     }
+    // habilitar el boton respectivo segun el estado de isRecording
     private void setButtonHandlers() {
         (btnGrabar).setOnClickListener(btnClick);
         (btnParar).setOnClickListener(btnClick);
@@ -77,11 +81,9 @@ public class MainActivity extends AppCompatActivity {
 
     // Graba
     private void startRecording() {
-
         recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,
                 RECORDER_SAMPLERATE, RECORDER_CHANNELS,
                 RECORDER_AUDIO_ENCODING, BufferElements2Rec * BytesPerElement);
-
         recorder.startRecording();
         isRecording = true;
         recordingThread = new Thread(new Runnable() {
@@ -107,28 +109,16 @@ public class MainActivity extends AppCompatActivity {
             sData[i] = 0;
         }
         return bytes;
-
     }
 
     // Escribe el audio de salida en Bytes
     private void writeAudioDataToFile() throws IOException {
 
         String filePath = "/sdcard/audio-record.pcm";
-        // Crear Fichero
-       /* File filepath = Environment.getExternalStorageDirectory();
-        File path = new File(filepath.getAbsolutePath() + "/LABORATORIO11/");
-        //Verifica si el directorio esta creado
-        if(!path.exists()){
-            path.mkdirs();
-        }*/
         short sData[] = new short[BufferElements2Rec];
-
         FileOutputStream audioR_ = null;
         try {
             audioR_ = new FileOutputStream(filePath);
-            //Añadir codigo para convertir archivo PCM a WAV
-
-
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -181,9 +171,14 @@ public class MainActivity extends AppCompatActivity {
                     enableButtons(false);
                     stopRecording();
 
-                    // COnvertir AUDIO PCM a WAV
+                    // Convertir AUDIO PCM a WAV
                     File audioRecord = new File("/sdcard/audio-record.pcm");
                     File audioWav = new File("/sdcard/audio-record.wav");
+                    try {
+                        rawToWave(audioRecord, audioWav);
+                    } catch (IOException e){
+                        e.printStackTrace();
+                    }
                     break;
                 }
             }
@@ -202,7 +197,7 @@ public class MainActivity extends AppCompatActivity {
                 Manifest.permission.RECORD_AUDIO
         },REQUEST_PERMISSION_CODE);
     }
-
+    // Espera los permisos del usuario.
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode){
@@ -216,6 +211,72 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             }
+        }
+    }
+
+    //------------------------------------------------------------------------------------//
+    //Codigo para convertir de PCM a WAV y que se pueda reproducir
+
+    private void rawToWave(final File rawFile, final File waveFile) throws IOException {
+        byte[] rawData = new byte[(int) rawFile.length()];
+        DataInputStream input = null;
+        try {
+            input = new DataInputStream(new FileInputStream(rawFile));
+            input.read(rawData);
+        } finally {
+            if (input != null) {
+                input.close();
+            }
+        }
+        DataOutputStream output = null;
+        try {
+            output = new DataOutputStream(new FileOutputStream(waveFile));
+            // WAVE header
+            // see http://ccrma.stanford.edu/courses/422/projects/WaveFormat/
+            writeString(output, "RIFF"); // chunk id
+            writeInt(output, 36 + rawData.length); // chunk size
+            writeString(output, "WAVE"); // format
+            writeString(output, "fmt "); // subchunk 1 id
+            writeInt(output, 16); // subchunk 1 size
+            writeShort(output, (short) 1); // audio format (1 = PCM)
+            writeShort(output, (short) 1); // number of channels
+            writeInt(output, 44100); // sample rate
+            writeInt(output, RECORDER_SAMPLERATE * 2); // byte rate
+            writeShort(output, (short) 2); // block align
+            writeShort(output, (short) 16); // bits per sample
+            writeString(output, "data"); // subchunk 2 id
+            writeInt(output, rawData.length); // subchunk 2 size
+            // Audio data (conversion big endian -> little endian)
+            short[] shorts = new short[rawData.length / 2];
+            ByteBuffer.wrap(rawData).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shorts);
+            ByteBuffer bytes = ByteBuffer.allocate(shorts.length * 2);
+            for (short s : shorts) {
+                bytes.putShort(s);
+            }
+            //output.write(rawFile);
+        } finally {
+            if (output != null) {
+                output.close();
+            }
+        }
+    }
+
+    // Estos métodos permiten cambiar el formato de PCM a WAV según los valores de los array int
+    private void writeInt(final DataOutputStream output, final int value) throws IOException {
+        output.write(value >> 0);
+        output.write(value >> 8);
+        output.write(value >> 16);
+        output.write(value >> 24);
+    }
+
+    private void writeShort(final DataOutputStream output, final short value) throws IOException {
+        output.write(value >> 0);
+        output.write(value >> 8);
+    }
+
+    private void writeString(final DataOutputStream output, final String value) throws IOException {
+        for (int i = 0; i < value.length(); i++) {
+            output.write(value.charAt(i));
         }
     }
 }
