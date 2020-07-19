@@ -59,7 +59,6 @@ public class MainActivity extends AppCompatActivity {
         btnParar = (Button)findViewById(R.id.btn_parar);
         setButtonHandlers();
         enableButtons(false);
-
         int bufferSize = AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE,
                 RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING);
 
@@ -113,7 +112,6 @@ public class MainActivity extends AppCompatActivity {
 
     // Escribe el audio de salida en Bytes
     private void writeAudioDataToFile() throws IOException {
-
         String filePath = "/sdcard/audio-record.pcm";
         short sData[] = new short[BufferElements2Rec];
         FileOutputStream audioR_ = null;
@@ -171,7 +169,7 @@ public class MainActivity extends AppCompatActivity {
                     enableButtons(false);
                     stopRecording();
 
-                    // Convertir AUDIO PCM a WAV
+                    // COnvertir AUDIO PCM a WAV
                     File audioRecord = new File("/sdcard/audio-record.pcm");
                     File audioWav = new File("/sdcard/audio-record.wav");
                     try {
@@ -185,29 +183,31 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+
     //PERMISOS
     private boolean checkPermision(){
         int write_external_storage_result = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
         int record_audio_result = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO);
         return write_external_storage_result == PackageManager.PERMISSION_GRANTED && record_audio_result == PackageManager.PERMISSION_GRANTED;
     }
+    // Espera los permisos del usuario
     private void requestPermission() {
         ActivityCompat.requestPermissions(this, new String[]{
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 Manifest.permission.RECORD_AUDIO
         },REQUEST_PERMISSION_CODE);
     }
-    // Espera los permisos del usuario.
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode){
             case REQUEST_PERMISSION_CODE:
             {
                 if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-                    Toast.makeText(this, "PERMISSION GRANTED", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "PERMISION GRANTED", Toast.LENGTH_LONG).show();
                 }
                 else {
-                    Toast.makeText(this, "PERMISSION DENIED", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "PERMISION DENIED", Toast.LENGTH_SHORT).show();
                 }
                 break;
             }
@@ -218,6 +218,7 @@ public class MainActivity extends AppCompatActivity {
     //Codigo para convertir de PCM a WAV y que se pueda reproducir
 
     private void rawToWave(final File rawFile, final File waveFile) throws IOException {
+
         byte[] rawData = new byte[(int) rawFile.length()];
         DataInputStream input = null;
         try {
@@ -228,6 +229,7 @@ public class MainActivity extends AppCompatActivity {
                 input.close();
             }
         }
+
         DataOutputStream output = null;
         try {
             output = new DataOutputStream(new FileOutputStream(waveFile));
@@ -253,7 +255,7 @@ public class MainActivity extends AppCompatActivity {
             for (short s : shorts) {
                 bytes.putShort(s);
             }
-            //output.write(rawFile);
+            output.write(fullyReadFileToBytes(rawFile));
         } finally {
             if (output != null) {
                 output.close();
@@ -261,7 +263,32 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Estos métodos permiten cambiar el formato de PCM a WAV según los valores de los array int
+    // Recibe un archivo y este método divide el archivo en un array de bytes
+    // para ser procesado en la salida del método principal.
+    byte[] fullyReadFileToBytes(File f) throws IOException {
+        int size = (int) f.length();
+        byte bytes[] = new byte[size];
+        byte tmpBuff[] = new byte[size];
+        FileInputStream fis= new FileInputStream(f);
+        try {
+
+            int read = fis.read(bytes, 0, size);
+            if (read < size) {
+                int remain = size - read;
+                while (remain > 0) {
+                    read = fis.read(tmpBuff, 0, remain);
+                    System.arraycopy(tmpBuff, 0, bytes, size - remain, read);
+                    remain -= read;
+                }
+            }
+        }  catch (IOException e){
+            throw e;
+        } finally {
+            fis.close();
+        }
+        return bytes;
+    }
+    // Estos metodos permiten cambiar el formato de PCM a WAV segun los valores de los array int
     private void writeInt(final DataOutputStream output, final int value) throws IOException {
         output.write(value >> 0);
         output.write(value >> 8);
